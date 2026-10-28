@@ -1,4 +1,5 @@
 import { useState } from 'react';
+
 import {
   View,
   Text,
@@ -8,7 +9,9 @@ import {
   Alert,
   ScrollView,
 } from 'react-native';
+
 import { router } from 'expo-router';
+
 
 type Journey = {
   id: number;
@@ -18,26 +21,38 @@ type Journey = {
   departureDate: string;
   departureTime: string;
   availableSeats: number;
+  matchScore: number;
+  extraDistance: number;
+  pickupDistance: number;
+  dropoffDistance: number;
 };
+
 
 export default function FindRideScreen() {
   const [origin, setOrigin] = useState('');
   const [destination, setDestination] = useState('');
   const [departureDate, setDepartureDate] = useState('');
+
   const [journeys, setJourneys] = useState<Journey[]>([]);
 
+
   const handleSearch = async () => {
-    if (!origin || !destination || !departureDate) {
+    if (
+      !origin ||
+      !destination ||
+      !departureDate
+    ) {
       Alert.alert(
         'Missing information',
         'Please complete all fields.'
       );
+
       return;
     }
 
     try {
       const url =
-        `http://192.168.1.106:5001/api/journeys` +
+        'http://192.168.1.106:5001/api/journeys' +
         `?origin=${encodeURIComponent(origin)}` +
         `&destination=${encodeURIComponent(destination)}` +
         `&date=${encodeURIComponent(departureDate)}`;
@@ -46,21 +61,24 @@ export default function FindRideScreen() {
 
       const data = await response.json();
 
-      if (response.ok) {
-        setJourneys(data);
-
-        if (data.length === 0) {
-          Alert.alert(
-            'No journeys found',
-            'There are no matching journeys.'
-          );
-        }
-      } else {
+      if (!response.ok) {
         Alert.alert(
           'Search failed',
-          data.message || 'Unable to search journeys.'
+          data.message || 'Unable to search.'
+        );
+
+        return;
+      }
+
+      setJourneys(data);
+
+      if (data.length === 0) {
+        Alert.alert(
+          'No journeys found',
+          'No compatible journeys were found.'
         );
       }
+
     } catch (error) {
       console.log(error);
 
@@ -71,9 +89,14 @@ export default function FindRideScreen() {
     }
   };
 
+
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>Find a Ride</Text>
+    <ScrollView
+      contentContainerStyle={styles.container}
+    >
+      <Text style={styles.title}>
+        Find a Ride
+      </Text>
 
       <TextInput
         style={styles.input}
@@ -108,10 +131,20 @@ export default function FindRideScreen() {
         </Text>
       </Pressable>
 
+
       {journeys.map((journey) => (
-        <View key={journey.id} style={styles.card}>
+        <View
+          key={journey.id}
+          style={styles.card}
+        >
           <Text style={styles.route}>
-            {journey.origin} → {journey.destination}
+            {journey.origin}
+            {' → '}
+            {journey.destination}
+          </Text>
+
+          <Text style={styles.match}>
+            {journey.matchScore}% Match
           </Text>
 
           <Text style={styles.details}>
@@ -123,17 +156,38 @@ export default function FindRideScreen() {
           </Text>
 
           <Text style={styles.details}>
-            Seats available: {journey.availableSeats}
+            Seats: {journey.availableSeats}
+          </Text>
+
+          <Text style={styles.details}>
+            Pickup distance from route:{' '}
+            {journey.pickupDistance} km
+          </Text>
+
+          <Text style={styles.details}>
+            Drop-off distance from route:{' '}
+            {journey.dropoffDistance} km
+          </Text>
+
+          <Text style={styles.details}>
+            Estimated extra distance:{' '}
+            {journey.extraDistance} km
           </Text>
         </View>
       ))}
 
-      <Pressable onPress={() => router.back()}>
-        <Text style={styles.backText}>Back</Text>
+
+      <Pressable
+        onPress={() => router.back()}
+      >
+        <Text style={styles.backText}>
+          Back
+        </Text>
       </Pressable>
     </ScrollView>
   );
 }
+
 
 const styles = StyleSheet.create({
   container: {
@@ -180,7 +234,7 @@ const styles = StyleSheet.create({
     borderColor: '#dddddd',
     borderRadius: 12,
     padding: 18,
-    marginBottom: 15,
+    marginBottom: 18,
     backgroundColor: '#ffffff',
   },
 
@@ -188,11 +242,18 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
     color: '#111111',
-    marginBottom: 10,
+    marginBottom: 8,
+  },
+
+  match: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#111111',
+    marginBottom: 12,
   },
 
   details: {
-    fontSize: 16,
+    fontSize: 15,
     color: '#555555',
     marginBottom: 5,
   },
