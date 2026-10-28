@@ -1,0 +1,19 @@
+# React Native / Expo
+mobile/node_modules/
+mobile/.expo/
+mobile/dist/
+
+# Python
+backend/.venv/
+backend/__pycache__/
+*.pyc
+
+# Database
+backend/instance/
+*.db
+
+# macOS
+.DS_Store
+
+# Environment variables
+.env
