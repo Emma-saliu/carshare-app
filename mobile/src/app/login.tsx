@@ -43,14 +43,13 @@ export default function LoginScreen() {
 
       if (response.ok) {
         router.replace({
-            pathname: '/dashboard',
-            params: {
-                firstName: data.user.firstName,
-                userId: String(data.user.id),
-            },
+          pathname: '/dashboard',
+          params: {
+            firstName: data.user.firstName,
+            userId: String(data.user.id),
+          },
         });
-    }
-      else {
+      } else {
         Alert.alert(
           'Login failed',
           data.message || 'Unable to login.'

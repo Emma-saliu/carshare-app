@@ -1,5 +1,6 @@
 import { useState } from 'react';
 
+
 import {
   View,
   Text,
@@ -16,32 +17,56 @@ import { router } from 'expo-router';
 type Journey = {
   id: number;
   driverId: number;
+
   origin: string;
   destination: string;
+
   departureDate: string;
   departureTime: string;
+
   availableSeats: number;
+
   matchScore: number;
+
+  geographicalScore: number;
+
+  timeScore: number;
+  timeDifference: number;
+
   extraDistance: number;
+
   pickupDistance: number;
   dropoffDistance: number;
 };
 
 
 export default function FindRideScreen() {
-  const [origin, setOrigin] = useState('');
-  const [destination, setDestination] = useState('');
-  const [departureDate, setDepartureDate] = useState('');
 
-  const [journeys, setJourneys] = useState<Journey[]>([]);
+  const [origin, setOrigin] =
+    useState('');
+
+  const [destination, setDestination] =
+    useState('');
+
+  const [departureDate, setDepartureDate] =
+    useState('');
+
+  const [preferredTime, setPreferredTime] =
+    useState('');
+
+  const [journeys, setJourneys] =
+    useState<Journey[]>([]);
 
 
   const handleSearch = async () => {
+
     if (
       !origin ||
       !destination ||
-      !departureDate
+      !departureDate ||
+      !preferredTime
     ) {
+
       Alert.alert(
         'Missing information',
         'Please complete all fields.'
@@ -50,29 +75,46 @@ export default function FindRideScreen() {
       return;
     }
 
+
     try {
+
       const url =
-        'http://192.168.1.106:5001/api/journeys' +
-        `?origin=${encodeURIComponent(origin)}` +
-        `&destination=${encodeURIComponent(destination)}` +
-        `&date=${encodeURIComponent(departureDate)}`;
+        'http://192.168.1.106:5001/api/journeys'
+        +
+        `?origin=${encodeURIComponent(origin)}`
+        +
+        `&destination=${encodeURIComponent(destination)}`
+        +
+        `&date=${encodeURIComponent(departureDate)}`
+        +
+        `&time=${encodeURIComponent(preferredTime)}`;
 
-      const response = await fetch(url);
 
-      const data = await response.json();
+      const response =
+        await fetch(url);
+
+
+      const data =
+        await response.json();
+
 
       if (!response.ok) {
+
         Alert.alert(
           'Search failed',
-          data.message || 'Unable to search.'
+          data.message ||
+          'Unable to search journeys.'
         );
 
         return;
       }
 
+
       setJourneys(data);
 
+
       if (data.length === 0) {
+
         Alert.alert(
           'No journeys found',
           'No compatible journeys were found.'
@@ -80,6 +122,7 @@ export default function FindRideScreen() {
       }
 
     } catch (error) {
+
       console.log(error);
 
       Alert.alert(
@@ -91,12 +134,17 @@ export default function FindRideScreen() {
 
 
   return (
+
     <ScrollView
-      contentContainerStyle={styles.container}
+      contentContainerStyle={
+        styles.container
+      }
     >
+
       <Text style={styles.title}>
         Find a Ride
       </Text>
+
 
       <TextInput
         style={styles.input}
@@ -106,6 +154,7 @@ export default function FindRideScreen() {
         onChangeText={setOrigin}
       />
 
+
       <TextInput
         style={styles.input}
         placeholder="To"
@@ -113,6 +162,7 @@ export default function FindRideScreen() {
         value={destination}
         onChangeText={setDestination}
       />
+
 
       <TextInput
         style={styles.input}
@@ -122,147 +172,272 @@ export default function FindRideScreen() {
         onChangeText={setDepartureDate}
       />
 
+
+      <TextInput
+        style={styles.input}
+        placeholder="Preferred time - e.g. 08:00"
+        placeholderTextColor="#777777"
+        value={preferredTime}
+        onChangeText={setPreferredTime}
+      />
+
+
       <Pressable
         style={styles.searchButton}
         onPress={handleSearch}
       >
-        <Text style={styles.searchButtonText}>
+
+        <Text
+          style={
+            styles.searchButtonText
+          }
+        >
           Search
         </Text>
+
       </Pressable>
 
 
-      {journeys.map((journey) => (
-        <View
-          key={journey.id}
-          style={styles.card}
-        >
-          <Text style={styles.route}>
-            {journey.origin}
-            {' → '}
-            {journey.destination}
-          </Text>
+      {journeys.map(
+        (journey) => (
 
-          <Text style={styles.match}>
-            {journey.matchScore}% Match
-          </Text>
+          <View
+            key={journey.id}
+            style={styles.card}
+          >
 
-          <Text style={styles.details}>
-            Date: {journey.departureDate}
-          </Text>
+            <Text
+              style={styles.route}
+            >
+              {journey.origin}
+              {' → '}
+              {journey.destination}
+            </Text>
 
-          <Text style={styles.details}>
-            Time: {journey.departureTime}
-          </Text>
 
-          <Text style={styles.details}>
-            Seats: {journey.availableSeats}
-          </Text>
+            <Text
+              style={styles.match}
+            >
+              {journey.matchScore}% Match
+            </Text>
 
-          <Text style={styles.details}>
-            Pickup distance from route:{' '}
-            {journey.pickupDistance} km
-          </Text>
 
-          <Text style={styles.details}>
-            Drop-off distance from route:{' '}
-            {journey.dropoffDistance} km
-          </Text>
+            <Text
+              style={styles.details}
+            >
+              Date:{' '}
+              {journey.departureDate}
+            </Text>
 
-          <Text style={styles.details}>
-            Estimated extra distance:{' '}
-            {journey.extraDistance} km
-          </Text>
-        </View>
-      ))}
+
+            <Text
+              style={styles.details}
+            >
+              Driver leaves:{' '}
+              {journey.departureTime}
+            </Text>
+
+
+            <Text
+              style={styles.details}
+            >
+              Seats available:{' '}
+              {journey.availableSeats}
+            </Text>
+
+
+            <View
+              style={styles.scoreSection}
+            >
+
+              <Text
+                style={
+                  styles.scoreTitle
+                }
+              >
+                Match breakdown
+              </Text>
+
+
+              <Text
+                style={styles.details}
+              >
+                Route score:{' '}
+                {journey.geographicalScore}%
+              </Text>
+
+
+              <Text
+                style={styles.details}
+              >
+                Time score:{' '}
+                {journey.timeScore}%
+              </Text>
+
+
+              <Text
+                style={styles.details}
+              >
+                Time difference:{' '}
+                {journey.timeDifference}
+                {' minutes'}
+              </Text>
+
+
+              <Text
+                style={styles.details}
+              >
+                Pickup distance from route:{' '}
+                {journey.pickupDistance}
+                {' km'}
+              </Text>
+
+
+              <Text
+                style={styles.details}
+              >
+                Drop-off distance from route:{' '}
+                {journey.dropoffDistance}
+                {' km'}
+              </Text>
+
+
+              <Text
+                style={styles.details}
+              >
+                Estimated extra distance:{' '}
+                {journey.extraDistance}
+                {' km'}
+              </Text>
+
+            </View>
+
+          </View>
+        )
+      )}
 
 
       <Pressable
-        onPress={() => router.back()}
+        onPress={() =>
+          router.back()
+        }
       >
-        <Text style={styles.backText}>
+
+        <Text
+          style={styles.backText}
+        >
           Back
         </Text>
+
       </Pressable>
+
     </ScrollView>
   );
 }
 
 
-const styles = StyleSheet.create({
-  container: {
-    flexGrow: 1,
-    backgroundColor: '#ffffff',
-    padding: 24,
-    paddingTop: 80,
-  },
+const styles =
+  StyleSheet.create({
 
-  title: {
-    fontSize: 36,
-    fontWeight: 'bold',
-    color: '#111111',
-    marginBottom: 30,
-  },
+    container: {
+      flexGrow: 1,
+      backgroundColor: '#ffffff',
+      padding: 24,
+      paddingTop: 80,
+    },
 
-  input: {
-    borderWidth: 1,
-    borderColor: '#cccccc',
-    borderRadius: 10,
-    padding: 15,
-    fontSize: 16,
-    marginBottom: 15,
-    color: '#111111',
-    backgroundColor: '#ffffff',
-  },
 
-  searchButton: {
-    backgroundColor: '#111111',
-    padding: 16,
-    borderRadius: 10,
-    alignItems: 'center',
-    marginBottom: 30,
-  },
+    title: {
+      fontSize: 36,
+      fontWeight: 'bold',
+      color: '#111111',
+      marginBottom: 30,
+    },
 
-  searchButtonText: {
-    color: '#ffffff',
-    fontSize: 18,
-    fontWeight: '600',
-  },
 
-  card: {
-    borderWidth: 1,
-    borderColor: '#dddddd',
-    borderRadius: 12,
-    padding: 18,
-    marginBottom: 18,
-    backgroundColor: '#ffffff',
-  },
+    input: {
+      borderWidth: 1,
+      borderColor: '#cccccc',
+      borderRadius: 10,
+      padding: 15,
+      fontSize: 16,
+      marginBottom: 15,
+      color: '#111111',
+      backgroundColor: '#ffffff',
+    },
 
-  route: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#111111',
-    marginBottom: 8,
-  },
 
-  match: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#111111',
-    marginBottom: 12,
-  },
+    searchButton: {
+      backgroundColor: '#111111',
+      padding: 16,
+      borderRadius: 10,
+      alignItems: 'center',
+      marginBottom: 30,
+    },
 
-  details: {
-    fontSize: 15,
-    color: '#555555',
-    marginBottom: 5,
-  },
 
-  backText: {
-    textAlign: 'center',
-    marginTop: 20,
-    marginBottom: 40,
-    fontSize: 16,
-    color: '#111111',
-  },
-});
+    searchButtonText: {
+      color: '#ffffff',
+      fontSize: 18,
+      fontWeight: '600',
+    },
+
+
+    card: {
+      borderWidth: 1,
+      borderColor: '#dddddd',
+      borderRadius: 12,
+      padding: 18,
+      marginBottom: 18,
+      backgroundColor: '#ffffff',
+    },
+
+
+    route: {
+      fontSize: 20,
+      fontWeight: 'bold',
+      color: '#111111',
+      marginBottom: 8,
+    },
+
+
+    match: {
+      fontSize: 22,
+      fontWeight: 'bold',
+      color: '#111111',
+      marginBottom: 15,
+    },
+
+
+    scoreSection: {
+      marginTop: 15,
+      paddingTop: 15,
+      borderTopWidth: 1,
+      borderTopColor: '#eeeeee',
+    },
+
+
+    scoreTitle: {
+      fontSize: 16,
+      fontWeight: 'bold',
+      color: '#111111',
+      marginBottom: 8,
+    },
+
+
+    details: {
+      fontSize: 15,
+      color: '#555555',
+      marginBottom: 5,
+    },
+
+
+    backText: {
+      textAlign: 'center',
+      marginTop: 20,
+      marginBottom: 40,
+      fontSize: 16,
+      color: '#111111',
+    },
+
+  });

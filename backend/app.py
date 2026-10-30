@@ -9,6 +9,8 @@ from geopy.extra.rate_limiter import RateLimiter
 from geopy.exc import GeocoderTimedOut, GeocoderServiceError
 from geopy.distance import geodesic
 
+from datetime import datetime
+
 import ssl
 import certifi
 import math
@@ -52,7 +54,10 @@ geocode = RateLimiter(
 # ---------------------------------------------------------
 
 class User(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(
+        db.Integer,
+        primary_key=True
+    )
 
     first_name = db.Column(
         db.String(50),
@@ -77,7 +82,10 @@ class User(db.Model):
 
 
 class Journey(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(
+        db.Integer,
+        primary_key=True
+    )
 
     driver_id = db.Column(
         db.Integer,
@@ -136,15 +144,10 @@ with app.app_context():
 
 
 # ---------------------------------------------------------
-# GEOGRAPHICAL FUNCTIONS
+# GEOCODING
 # ---------------------------------------------------------
 
 def geocode_location(place):
-    """
-    Convert a place name such as 'Carlow'
-    into latitude and longitude.
-    """
-
     try:
         clean_place = place.strip()
 
@@ -156,7 +159,11 @@ def geocode_location(place):
         )
 
         if not location:
-            print("LOCATION NOT FOUND:", clean_place)
+            print(
+                "LOCATION NOT FOUND:",
+                clean_place
+            )
+
             return None
 
         print(
@@ -170,45 +177,78 @@ def geocode_location(place):
             "longitude": location.longitude
         }
 
-    except (GeocoderTimedOut, GeocoderServiceError) as error:
-        print("GEOCODING ERROR:", error)
+    except (
+        GeocoderTimedOut,
+        GeocoderServiceError
+    ) as error:
+
+        print(
+            "GEOCODING ERROR:",
+            error
+        )
+
         return None
 
+
+# ---------------------------------------------------------
+# ROUTE PROJECTION
+# ---------------------------------------------------------
 
 def route_projection(
     driver_start,
     driver_end,
     passenger_point
 ):
-    """
-    Work out:
-    1. how far a passenger point is from the driver's route
-    2. where along the driver's route the point occurs
-
-    This uses a straight-line approximation for Iteration 1.
-    """
-
     start_lat, start_lon = driver_start
     end_lat, end_lon = driver_end
     point_lat, point_lon = passenger_point
 
     average_latitude = math.radians(
-        (start_lat + end_lat + point_lat) / 3
+        (
+            start_lat
+            + end_lat
+            + point_lat
+        ) / 3
     )
 
     km_per_latitude = 111.32
+
     km_per_longitude = (
-        111.32 * math.cos(average_latitude)
+        111.32
+        * math.cos(
+            average_latitude
+        )
     )
 
-    ax = start_lon * km_per_longitude
-    ay = start_lat * km_per_latitude
+    ax = (
+        start_lon
+        * km_per_longitude
+    )
 
-    bx = end_lon * km_per_longitude
-    by = end_lat * km_per_latitude
+    ay = (
+        start_lat
+        * km_per_latitude
+    )
 
-    px = point_lon * km_per_longitude
-    py = point_lat * km_per_latitude
+    bx = (
+        end_lon
+        * km_per_longitude
+    )
+
+    by = (
+        end_lat
+        * km_per_latitude
+    )
+
+    px = (
+        point_lon
+        * km_per_longitude
+    )
+
+    py = (
+        point_lat
+        * km_per_latitude
+    )
 
     ab_x = bx - ax
     ab_y = by - ay
@@ -217,7 +257,8 @@ def route_projection(
     ap_y = py - ay
 
     route_length_squared = (
-        ab_x ** 2 + ab_y ** 2
+        ab_x ** 2
+        + ab_y ** 2
     )
 
     if route_length_squared == 0:
@@ -227,26 +268,41 @@ def route_projection(
         }
 
     position = (
-        (ap_x * ab_x + ap_y * ab_y)
+        (
+            ap_x * ab_x
+            + ap_y * ab_y
+        )
         / route_length_squared
     )
 
     closest_position = max(
         0,
-        min(1, position)
+        min(
+            1,
+            position
+        )
     )
 
     closest_x = (
-        ax + closest_position * ab_x
+        ax
+        + closest_position * ab_x
     )
 
     closest_y = (
-        ay + closest_position * ab_y
+        ay
+        + closest_position * ab_y
     )
 
     distance = math.sqrt(
-        (px - closest_x) ** 2
-        + (py - closest_y) ** 2
+        (
+            px
+            - closest_x
+        ) ** 2
+        +
+        (
+            py
+            - closest_y
+        ) ** 2
     )
 
     return {
@@ -255,16 +311,15 @@ def route_projection(
     }
 
 
+# ---------------------------------------------------------
+# GEOGRAPHICAL MATCHING
+# ---------------------------------------------------------
+
 def calculate_match_score(
     journey,
     passenger_origin,
     passenger_destination
 ):
-    """
-    Determine whether the passenger journey is compatible
-    with the driver's journey.
-    """
-
     driver_start = (
         journey.origin_latitude,
         journey.origin_longitude
@@ -285,6 +340,7 @@ def calculate_match_score(
         passenger_destination["longitude"]
     )
 
+
     pickup = route_projection(
         driver_start,
         driver_end,
@@ -296,6 +352,7 @@ def calculate_match_score(
         driver_end,
         passenger_end
     )
+
 
     print(
         "PICKUP DISTANCE FROM ROUTE:",
@@ -317,36 +374,75 @@ def calculate_match_score(
         dropoff["position"]
     )
 
-    # Passenger should not require a huge deviation.
+
     maximum_route_distance = 30
 
-    if pickup["distance"] > maximum_route_distance:
-        print("REJECTED: pickup too far from route")
+
+    # Pickup is too far away
+    if (
+        pickup["distance"]
+        > maximum_route_distance
+    ):
+        print(
+            "REJECTED: pickup too far from route"
+        )
+
         return None
 
-    if dropoff["distance"] > maximum_route_distance:
-        print("REJECTED: destination too far from route")
+
+    # Destination is too far away
+    if (
+        dropoff["distance"]
+        > maximum_route_distance
+    ):
+        print(
+            "REJECTED: destination too far from route"
+        )
+
         return None
 
-    # Passenger should travel in roughly the same direction.
-    if pickup["position"] > dropoff["position"]:
-        print("REJECTED: wrong direction")
+
+    # Passenger is travelling in opposite direction
+    if (
+        pickup["position"]
+        > dropoff["position"]
+    ):
+        print(
+            "REJECTED: wrong direction"
+        )
+
         return None
 
-    # Passenger journey should overlap the driver's journey.
-    if pickup["position"] > 1.20:
-        print("REJECTED: pickup after driver's destination")
+
+    # Pickup occurs beyond the driver's destination
+    if (
+        pickup["position"]
+        > 1.20
+    ):
+        print(
+            "REJECTED: pickup after driver destination"
+        )
+
         return None
 
-    if dropoff["position"] < -0.20:
-        print("REJECTED: destination before driver's start")
+
+    # Passenger destination occurs too far before driver starts
+    if (
+        dropoff["position"]
+        < -0.20
+    ):
+        print(
+            "REJECTED: destination before driver start"
+        )
+
         return None
 
-    # Estimate detour using geographical distances.
+
     normal_driver_distance = geodesic(
         driver_start,
         driver_end
     ).km
+
 
     route_with_passenger = (
         geodesic(
@@ -365,54 +461,161 @@ def calculate_match_score(
         ).km
     )
 
+
     estimated_extra_distance = max(
         0,
-        route_with_passenger
-        - normal_driver_distance
+        (
+            route_with_passenger
+            - normal_driver_distance
+        )
     )
+
 
     average_route_distance = (
         pickup["distance"]
         + dropoff["distance"]
     ) / 2
 
-    # 100 = strongest match.
-    score = (
+
+    geographical_score = (
         100
-        - average_route_distance * 2
+        - (
+            average_route_distance
+            * 2
+        )
         - estimated_extra_distance
     )
 
-    score = max(
+
+    geographical_score = max(
         0,
-        min(100, score)
+        min(
+            100,
+            geographical_score
+        )
     )
 
-    print(
-        "MATCH SCORE:",
-        round(score)
-    )
 
     print(
-        "ESTIMATED EXTRA DISTANCE:",
-        estimated_extra_distance
+        "GEOGRAPHICAL SCORE:",
+        round(
+            geographical_score
+        )
     )
+
 
     return {
-        "score": round(score),
-        "extraDistance": round(
-            estimated_extra_distance,
-            2
-        ),
-        "pickupDistance": round(
-            pickup["distance"],
-            2
-        ),
-        "dropoffDistance": round(
-            dropoff["distance"],
-            2
-        )
+        "geographicalScore":
+            round(
+                geographical_score
+            ),
+
+        "extraDistance":
+            round(
+                estimated_extra_distance,
+                2
+            ),
+
+        "pickupDistance":
+            round(
+                pickup["distance"],
+                2
+            ),
+
+        "dropoffDistance":
+            round(
+                dropoff["distance"],
+                2
+            )
     }
+
+
+# ---------------------------------------------------------
+# TIME MATCHING
+# ---------------------------------------------------------
+
+def calculate_time_score(
+    driver_time,
+    passenger_time
+):
+    try:
+        driver = datetime.strptime(
+            driver_time,
+            "%H:%M"
+        )
+
+        passenger = datetime.strptime(
+            passenger_time,
+            "%H:%M"
+        )
+
+
+        difference = abs(
+            (
+                driver
+                - passenger
+            ).total_seconds()
+        ) / 60
+
+
+        print(
+            "TIME DIFFERENCE:",
+            difference,
+            "minutes"
+        )
+
+
+        # More than 2 hours difference
+        # means the journey is rejected
+        if difference > 120:
+            print(
+                "REJECTED: departure time too different"
+            )
+
+            return None
+
+
+        # 0 minute difference = 100
+        # 120 minute difference = 0
+        score = (
+            100
+            - (
+                difference
+                / 120
+                * 100
+            )
+        )
+
+
+        score = max(
+            0,
+            min(
+                100,
+                score
+            )
+        )
+
+
+        print(
+            "TIME SCORE:",
+            round(score)
+        )
+
+
+        return {
+            "score":
+                round(score),
+
+            "difference":
+                round(difference)
+        }
+
+    except ValueError:
+        print(
+            "INVALID TIME FORMAT"
+        )
+
+        return None
 
 
 # ---------------------------------------------------------
@@ -423,7 +626,8 @@ def calculate_match_score(
 def health():
     return jsonify({
         "status": "success",
-        "message": "CarShare API is running"
+        "message":
+            "CarShare API is running"
     })
 
 
@@ -431,29 +635,37 @@ def health():
 # REGISTER
 # ---------------------------------------------------------
 
-@app.route("/api/register", methods=["POST"])
+@app.route(
+    "/api/register",
+    methods=["POST"]
+)
 def register():
     data = request.get_json()
+
 
     first_name = data.get(
         "firstName",
         ""
     ).strip()
 
+
     last_name = data.get(
         "lastName",
         ""
     ).strip()
+
 
     email = data.get(
         "email",
         ""
     ).strip().lower()
 
+
     password = data.get(
         "password",
         ""
     )
+
 
     if (
         not first_name
@@ -462,33 +674,48 @@ def register():
         or not password
     ):
         return jsonify({
-            "message": "All fields are required"
+            "message":
+                "All fields are required"
         }), 400
+
 
     existing_user = User.query.filter_by(
         email=email
     ).first()
 
+
     if existing_user:
         return jsonify({
-            "message": "Email already registered"
+            "message":
+                "Email already registered"
         }), 409
+
 
     new_user = User(
         first_name=first_name,
         last_name=last_name,
         email=email,
-        password_hash=generate_password_hash(
-            password
-        )
+        password_hash=
+            generate_password_hash(
+                password
+            )
     )
 
-    db.session.add(new_user)
+
+    db.session.add(
+        new_user
+    )
+
     db.session.commit()
 
+
     return jsonify({
-        "message": "Account created successfully",
-        "userId": new_user.id
+        "message":
+            "Account created successfully",
+
+        "userId":
+            new_user.id
+
     }), 201
 
 
@@ -496,50 +723,76 @@ def register():
 # LOGIN
 # ---------------------------------------------------------
 
-@app.route("/api/login", methods=["POST"])
+@app.route(
+    "/api/login",
+    methods=["POST"]
+)
 def login():
     data = request.get_json()
+
 
     email = data.get(
         "email",
         ""
     ).strip().lower()
 
+
     password = data.get(
         "password",
         ""
     )
 
-    if not email or not password:
+
+    if (
+        not email
+        or not password
+    ):
         return jsonify({
-            "message": "Email and password are required"
+            "message":
+                "Email and password are required"
         }), 400
+
 
     user = User.query.filter_by(
         email=email
     ).first()
 
+
     if not user:
         return jsonify({
-            "message": "Invalid email or password"
+            "message":
+                "Invalid email or password"
         }), 401
+
 
     if not check_password_hash(
         user.password_hash,
         password
     ):
         return jsonify({
-            "message": "Invalid email or password"
+            "message":
+                "Invalid email or password"
         }), 401
 
+
     return jsonify({
-        "message": "Login successful",
+        "message":
+            "Login successful",
+
         "user": {
-            "id": user.id,
-            "firstName": user.first_name,
-            "lastName": user.last_name,
-            "email": user.email
+            "id":
+                user.id,
+
+            "firstName":
+                user.first_name,
+
+            "lastName":
+                user.last_name,
+
+            "email":
+                user.email
         }
+
     }), 200
 
 
@@ -547,35 +800,47 @@ def login():
 # CREATE JOURNEY
 # ---------------------------------------------------------
 
-@app.route("/api/journeys", methods=["POST"])
+@app.route(
+    "/api/journeys",
+    methods=["POST"]
+)
 def create_journey():
     data = request.get_json()
 
-    driver_id = data.get("driverId")
+
+    driver_id = data.get(
+        "driverId"
+    )
+
 
     origin = data.get(
         "origin",
         ""
     ).strip()
 
+
     destination = data.get(
         "destination",
         ""
     ).strip()
+
 
     departure_date = data.get(
         "departureDate",
         ""
     ).strip()
 
+
     departure_time = data.get(
         "departureTime",
         ""
     ).strip()
 
+
     available_seats = data.get(
         "availableSeats"
     )
+
 
     if (
         not driver_id
@@ -586,88 +851,112 @@ def create_journey():
         or not available_seats
     ):
         return jsonify({
-            "message": "All journey details are required"
+            "message":
+                "All journey details are required"
         }), 400
+
 
     try:
         available_seats = int(
             available_seats
         )
 
-    except (ValueError, TypeError):
+    except (
+        ValueError,
+        TypeError
+    ):
         return jsonify({
-            "message": "Seats must be a number"
+            "message":
+                "Seats must be a number"
         }), 400
+
 
     if available_seats < 1:
         return jsonify({
-            "message": "At least one seat must be available"
+            "message":
+                "At least one seat must be available"
         }), 400
+
 
     origin_coordinates = geocode_location(
         origin
     )
 
+
     if not origin_coordinates:
         return jsonify({
-            "message": "Could not find the starting location"
+            "message":
+                "Could not find the starting location"
         }), 400
+
 
     destination_coordinates = geocode_location(
         destination
     )
 
+
     if not destination_coordinates:
         return jsonify({
-            "message": "Could not find the destination"
+            "message":
+                "Could not find the destination"
         }), 400
 
-    print(
-        "DRIVER ORIGIN:",
-        origin_coordinates
-    )
-
-    print(
-        "DRIVER DESTINATION:",
-        destination_coordinates
-    )
 
     journey = Journey(
-        driver_id=driver_id,
+        driver_id=
+            driver_id,
 
-        origin=origin,
+        origin=
+            origin,
 
-        origin_latitude=(
-            origin_coordinates["latitude"]
-        ),
+        origin_latitude=
+            origin_coordinates[
+                "latitude"
+            ],
 
-        origin_longitude=(
-            origin_coordinates["longitude"]
-        ),
+        origin_longitude=
+            origin_coordinates[
+                "longitude"
+            ],
 
-        destination=destination,
+        destination=
+            destination,
 
-        destination_latitude=(
-            destination_coordinates["latitude"]
-        ),
+        destination_latitude=
+            destination_coordinates[
+                "latitude"
+            ],
 
-        destination_longitude=(
-            destination_coordinates["longitude"]
-        ),
+        destination_longitude=
+            destination_coordinates[
+                "longitude"
+            ],
 
-        departure_date=departure_date,
+        departure_date=
+            departure_date,
 
-        departure_time=departure_time,
+        departure_time=
+            departure_time,
 
-        available_seats=available_seats
+        available_seats=
+            available_seats
     )
 
-    db.session.add(journey)
+
+    db.session.add(
+        journey
+    )
+
     db.session.commit()
 
+
     return jsonify({
-        "message": "Journey created successfully",
-        "journeyId": journey.id
+        "message":
+            "Journey created successfully",
+
+        "journeyId":
+            journey.id
+
     }), 201
 
 
@@ -675,142 +964,236 @@ def create_journey():
 # SMART JOURNEY SEARCH
 # ---------------------------------------------------------
 
-@app.route("/api/journeys", methods=["GET"])
+@app.route(
+    "/api/journeys",
+    methods=["GET"]
+)
 def search_journeys():
+
     origin = request.args.get(
         "origin",
         ""
     ).strip()
+
 
     destination = request.args.get(
         "destination",
         ""
     ).strip()
 
+
     departure_date = request.args.get(
         "date",
         ""
     ).strip()
 
+
+    preferred_time = request.args.get(
+        "time",
+        ""
+    ).strip()
+
+
     if (
         not origin
         or not destination
         or not departure_date
+        or not preferred_time
     ):
         return jsonify({
             "message":
-            "Origin, destination and date are required"
+                "Origin, destination, date and time are required"
         }), 400
+
 
     passenger_origin = geocode_location(
         origin
     )
 
+
     if not passenger_origin:
         return jsonify({
             "message":
-            "Could not find passenger starting location"
+                "Could not find passenger starting location"
         }), 400
+
 
     passenger_destination = geocode_location(
         destination
     )
 
+
     if not passenger_destination:
         return jsonify({
             "message":
-            "Could not find passenger destination"
+                "Could not find passenger destination"
         }), 400
 
-    print(
-        "PASSENGER ORIGIN:",
-        passenger_origin
-    )
-
-    print(
-        "PASSENGER DESTINATION:",
-        passenger_destination
-    )
 
     journeys = Journey.query.filter_by(
-        departure_date=departure_date
+        departure_date=
+            departure_date
     ).all()
+
 
     print(
         "JOURNEYS FOUND FOR DATE:",
         len(journeys)
     )
 
+
     results = []
+
 
     for journey in journeys:
 
         print(
-            "CHECKING JOURNEY:",
+            "\nCHECKING JOURNEY:",
             journey.id,
             journey.origin,
             "->",
             journey.destination
         )
 
-        if journey.available_seats < 1:
+
+        if (
+            journey.available_seats
+            < 1
+        ):
+            print(
+                "REJECTED: no available seats"
+            )
+
             continue
 
-        match = calculate_match_score(
-            journey,
-            passenger_origin,
-            passenger_destination
+
+        geographical_match = (
+            calculate_match_score(
+                journey,
+                passenger_origin,
+                passenger_destination
+            )
         )
 
-        if match is None:
+
+        if (
+            geographical_match
+            is None
+        ):
             continue
 
+
+        time_match = (
+            calculate_time_score(
+                journey.departure_time,
+                preferred_time
+            )
+        )
+
+
+        if time_match is None:
+            continue
+
+
+        # Geography = 70%
+        # Time = 30%
+        final_score = (
+            geographical_match[
+                "geographicalScore"
+            ]
+            * 0.70
+            +
+            time_match[
+                "score"
+            ]
+            * 0.30
+        )
+
+
+        final_score = round(
+            final_score
+        )
+
+
+        print(
+            "FINAL MATCH SCORE:",
+            final_score
+        )
+
+
         results.append({
-            "id": journey.id,
+            "id":
+                journey.id,
 
             "driverId":
-            journey.driver_id,
+                journey.driver_id,
 
             "origin":
-            journey.origin,
+                journey.origin,
 
             "destination":
-            journey.destination,
+                journey.destination,
 
             "departureDate":
-            journey.departure_date,
+                journey.departure_date,
 
             "departureTime":
-            journey.departure_time,
+                journey.departure_time,
 
             "availableSeats":
-            journey.available_seats,
+                journey.available_seats,
 
             "matchScore":
-            match["score"],
+                final_score,
+
+            "geographicalScore":
+                geographical_match[
+                    "geographicalScore"
+                ],
+
+            "timeScore":
+                time_match[
+                    "score"
+                ],
+
+            "timeDifference":
+                time_match[
+                    "difference"
+                ],
 
             "extraDistance":
-            match["extraDistance"],
+                geographical_match[
+                    "extraDistance"
+                ],
 
             "pickupDistance":
-            match["pickupDistance"],
+                geographical_match[
+                    "pickupDistance"
+                ],
 
             "dropoffDistance":
-            match["dropoffDistance"]
+                geographical_match[
+                    "dropoffDistance"
+                ]
         })
+
 
     results.sort(
         key=lambda result:
-        result["matchScore"],
+            result["matchScore"],
         reverse=True
     )
+
 
     print(
         "MATCHING JOURNEYS:",
         len(results)
     )
 
-    return jsonify(results), 200
+
+    return jsonify(
+        results
+    ), 200
 
 
 # ---------------------------------------------------------
